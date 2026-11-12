@@ -1,0 +1,117 @@
+# ==============================================================================
+# FleetX Monorepo — Root .gitignore
+# ==============================================================================
+
+# Dependencies
+node_modules/
+vendor/
+
+# Environment files (keep sanitized .env.example templates)
+.env
+.env.*
+!.env.example
+*.env.bak
+
+# Logs & Debug Outputs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+login_body.txt
+
+# Local Databases & Dumps
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.db
+*.sql
+*.dump
+
+# Laravel Runtime, Caches & Private Storage
+backend/.phpunit.result.cache
+backend/.phpunit.cache/
+backend/public/build/
+backend/public/hot
+backend/public/storage
+backend/storage/*.key
+backend/storage/pail/
+backend/storage/logs/*
+!backend/storage/logs/.gitignore
+backend/storage/app/private/*
+!backend/storage/app/private/.gitignore
+backend/storage/app/*.json
+backend/storage/framework/cache/*
+!backend/storage/framework/cache/.gitignore
+backend/storage/framework/sessions/*
+!backend/storage/framework/sessions/.gitignore
+backend/storage/framework/testing/*
+!backend/storage/framework/testing/.gitignore
+backend/storage/framework/views/*
+!backend/storage/framework/views/.gitignore
+backend/bootstrap/cache/*.php
+!backend/bootstrap/cache/.gitignore
+.phpactor.json
+Homestead.json
+Homestead.yaml
+auth.json
+
+# Python & AI/ETA Evaluation Artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+backend/ai/eta/evaluation/plots/
+backend/ai/eta/evaluation/*.csv
+backend/ai/eta/evaluation/*.json
+
+# React / Vite Build Outputs
+dist/
+dist-ssr/
+*.local
+
+# Expo / React Native Generated Files & Exports
+.expo/
+.expo-export-*/
+dist-*/
+web-build/
+expo-env.d.ts
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+.metro-health-check*
+*.tsbuildinfo
+mobile-app/.cache/
+mobile-app/client-app/ios/
+mobile-app/client-app/android/
+mobile-app/driver-app/ios/
+mobile-app/driver-app/android/
+
+# Screenshots & Temporary Verification Artifacts
+dashboard-web/screenshots/
+
+# IDE, AI Assistants & OS Files
+.vscode/
+.idea/
+.fleet/
+.nova/
+.zed/
+.claude/
+.agents/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+

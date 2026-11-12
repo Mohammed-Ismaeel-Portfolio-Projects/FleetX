@@ -1,0 +1,23 @@
+<?php
+
+namespace App\Http\Requests\Driver;
+
+use Illuminate\Foundation\Http\FormRequest;
+
+class ShowDriverTripMapRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    public function rules(): array
+    {
+        return [
+            'driver_id' => ['prohibited'],
+            'shipment_id' => ['prohibited'],
+            'company_id' => ['prohibited'],
+            'assignment_id' => ['prohibited'],
+        ];
+    }
+}

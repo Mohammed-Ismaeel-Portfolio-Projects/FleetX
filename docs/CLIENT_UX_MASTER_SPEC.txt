@@ -1,0 +1,734 @@
+# FleetX Client App — UX Master Specification (C2.2)
+
+**Document status:** Single Source of Truth for Client App UX / functional design  
+**Phase:** C2.2 — Product UX / Functional Specification ONLY  
+**Date:** 2026-08-10  
+**Depends on:** C2.1 Master Product Blueprint (repository audit)  
+**Scope:** `mobile-app/client-app` only — Driver App out of scope  
+
+**Classification legend (mandatory):**
+
+| Label | Meaning |
+|-------|---------|
+| **REAL / EXISTING** | Implemented in Client App and backed by client-accessible backend |
+| **PARTIAL** | Some real data/API; rest mock, stub, or incomplete |
+| **MOCK** | UI exists; not production-backed for client role |
+| **PLANNED** | Documented product intent / roadmap; not implemented |
+| **MISSING** | Required for target product; not present |
+| **REQUIRES DECISION** | Product/security choice needed before implementation |
+
+**Hard rules:** Do not invent APIs. Do not treat mock UI as live ops. Messaging (M7–M9) is **PROTECTED**. Client must never consume admin/dispatcher-only endpoints as product features.
+
+---
+
+## 0. Product Statement
+
+### What is FleetX Client App?
+
+FleetX Client App is the **customer-facing mobile application** for company-linked client users. It lets a logistics customer:
+
+1. Authenticate securely and see which company account they represent  
+2. Communicate with FleetX dispatchers on authorized shipment-related conversations  
+3. (When backend contracts exist) view and act on **their company’s shipments**, track status, and receive notifications  
+
+Today the app is a **hybrid**: production messaging + auth, plus recovered premium product UI that is largely **MOCK** for shipments/tracking/notifications.
+
+### CURRENT PRODUCT
+
+Auth + identity + `dispatcher_customer` messaging (+ shipment communication handoff), wrapped in a premium shell with mock shipment/tracking/notification surfaces.
+
+### TARGET PRODUCT
+
+A calm, professional customer logistics app: identity-aware home, honest shipment/tracking experiences (client-scoped), protected messaging, notifications when contracted, clear profile/company, and never silent fake success.
+
+### WHAT EXISTS (REAL)
+
+JWT auth, SecureStore, `/auth/me`, `/auth/identity`, company link gate, conversation list/detail/send/read, Reverb + REST fallback, Message.id dedupe, shipment→conversation handoff (no auto-create).
+
+### WHAT MUST BE BUILT (FRONTEND)
+
+Honest navigation/shell, home without fake KPIs, unavailable states for unsupported domains, profile cleanup, deep-link integration points to messaging — then shipment/tracking/notification UIs **only after** client-safe APIs.
+
+### WHAT REQUIRES BACKEND
+
+Client-scoped shipment list/show/(optional create); client-safe tracking/status timeline; notifications API; register→company-link policy; optional password reset / SSO.
+
+### WHAT MUST NEVER BE FAKED
+
+Live GPS, ETA, driver PII, shipment lists “succeeding” without API, notification centers pretending unread counts, dashboard KPIs from ops endpoints, conversation auto-create, “Connected” realtime when transport is down.
+
+---
+
+## 1. Application Journey (Install → Daily Use)
+
+For each stage: purpose, user goal, visible UI, primary/secondary actions, navigation, loading/empty/error/unauthorized/unavailable, retry, back.
+
+### 1.1 App installation
+
+| Field | Spec |
+|-------|------|
+| Purpose | Deliver Client App binary (Expo Go / store build) |
+| User goal | Install FleetX Customer |
+| Visible UI | OS store / sideload |
+| Classification | **REAL** (distribution); config via `.env` hosts **EXISTING** documented |
+
+### 1.2 First launch / Splash
+
+| Field | Spec |
+|-------|------|
+| Purpose | Brand presence while auth bootstraps |
+| User goal | Know app is FleetX; wait briefly |
+| Visible UI | FleetX splash / animated overlay (existing) |
+| Primary action | None (automatic) |
+| Loading | Spinner until `AuthContext.ready` |
+| Error | If boot fails → Login with retry message |
+| Classification | **REAL / EXISTING** shell |
+
+### 1.3 Session restoration
+
+| Field | Spec |
+|-------|------|
+| Purpose | Restore JWT from SecureStore (native) / web storage |
+| User goal | Skip login when session valid |
+| Data | Token → `GET /auth/me` + `GET /auth/identity` |
+| Success | → Main tabs |
+| Failure / 401 | Clear token → Login |
+| Classification | **REAL / EXISTING** |
+
+### 1.4 Authentication decision
+
+| State | Destination |
+|-------|-------------|
+| No token / invalid | Login |
+| Valid + role `client` | Tabs |
+| Valid + wrong role | Block messaging; show role mismatch (**EXISTING** `roleOk`) |
+| Linked company | Full messaging |
+| Unlinked company | Banners; messaging unavailable (**EXISTING**) |
+
+### 1.5 Login
+
+| Field | Spec |
+|-------|------|
+| Route | `/login` |
+| Purpose | Authenticate client user |
+| UI | Premium login (C1) + real submit |
+| Inputs | Email, password |
+| Primary | Login → `POST /auth/login` → tabs |
+| Secondary | Register (navigate); Google = **unavailable** |
+| Loading | Button loading |
+| Error | Inline `login-error` (invalid credentials / network) |
+| API | **REAL** |
+| Classification | **REAL / EXISTING** (SSO/Forgot = **MOCK / MISSING**) |
+
+### 1.6 Registration
+
+| Field | Spec |
+|-------|------|
+| Route | `/register` |
+| Purpose | Create account UI |
+| API | `POST /auth/register` exists and creates role `client` **without** company link |
+| Risk | User may login but remain unlinked → messaging blocked |
+| Spec rule | Product must explain linking; do not fake “ready to ship” |
+| Classification | **PARTIAL** API + **REQUIRES DECISION** on self-serve company linking |
+
+### 1.7 Linked / Unlinked company
+
+| Linked (**REAL**) | Unlinked (**REAL**) |
+|-------------------|---------------------|
+| Show company name/code from identity | Persistent Home/Profile banner |
+| Messaging enabled when `roleOk` | Messaging actions disabled + copy |
+| Future shipment APIs scoped to company | Same |
+
+### 1.8 Authenticated Home → Logout / expiry / network
+
+See §§7, 14, 21. Logout: **REAL** `POST /auth/logout` + clear token + destroy realtime. Session expiry mid-flow: clear → Login with message. Network failure: error + Retry; never invent success.
+
+---
+
+## 2. Information Architecture
+
+### 2.1 Evaluation of current 5-tab structure
+
+Current tabs: **Home | Shipments | Tracking | Messages | Profile**
+
+| Criterion | Assessment |
+|-----------|------------|
+| Frequency | Messages is highest real usage today; shipments/tracking are mock |
+| Business importance | Shipments/tracking are target P1 ops; messaging is P0 ops today |
+| Discoverability | Five tabs OK for mobile; Messages must stay a primary tab |
+| Ergonomics | Bottom tabs match recovered design language |
+| Scalability | Stack routes for details/handoff/notifications already fit |
+
+**Decision: KEEP five tabs** as the primary IA.
+
+**Rationale:** Matches recovered FleetX visual product, scales when shipment APIs arrive, and keeps Messages discoverable. Do **not** merge Tracking into Shipments until tracking has a client contract — until then Tracking tab shows honest **status/unavailable**, not fake maps.
+
+### 2.2 Final IA tree
+
+```
+Client App
+├── Splash / Session Gate          (/ )
+├── Authentication
+│   ├── Login                      (/login)
+│   └── Register                   (/register)
+├── Main Tabs
+│   ├── Home                       (/(tabs)/ )
+│   ├── Shipments                  (/(tabs)/shipments)
+│   │   ├── [TARGET] List          (primary content when API exists)
+│   │   ├── [TARGET] Create        (stack/modal — contract required)
+│   │   └── [TARGET] Details       (stack — contract required)
+│   ├── Tracking                   (/(tabs)/tracking)
+│   ├── Messages                   (/(tabs)/messages)          ← PROTECTED
+│   │   └── Conversation           (/conversation/[id])      ← PROTECTED
+│   └── Profile                    (/(tabs)/profile)
+│       ├── Company (section)
+│       ├── Settings (supported only)
+│       └── Support (→ Messages)
+└── Contextual
+    ├── Shipment communication handoff (/shipment/[id])       ← PROTECTED
+    ├── Product shipment-details (/shipment-details)          ← MOCK until API
+    └── Notifications (/notifications)                        ← MOCK until API
+```
+
+**Naming clarification (product):** Today’s Shipments tab is a **Create Shipment prototype**, not a list. Target: list-first; create secondary.
+
+---
+
+## 3. Screen-by-Screen Specification
+
+### 3.1 Splash / Session Gate
+
+| Item | Spec |
+|------|------|
+| A–C | Splash / `/` — boot + auth redirect |
+| D | Reach correct surface without user action |
+| E–F | App open → Login or Tabs |
+| G–I | Brand splash; no header |
+| V–W | Token storage + me/identity |
+| Classification | **REAL** |
+
+### 3.2 Login — `/login`
+
+| Item | Spec |
+|------|------|
+| Purpose | Authenticate |
+| Entry | Gate, logout, 401 |
+| Exit | Tabs on success |
+| Header | Logo + welcome |
+| Inputs | Email, password (+ Remember Me UI only) |
+| Primary | Login |
+| Secondary | Sign up; Google disabled |
+| Loading / Error | Button spinner; inline error |
+| Unauthorized | Invalid credentials message |
+| API | `POST /auth/login` **REAL** |
+| testIDs | `login-email`, `login-password`, `login-submit`, `login-error` |
+
+### 3.3 Register — `/register`
+
+| Item | Spec |
+|------|------|
+| Purpose | Account creation UI |
+| API | Register endpoint **EXISTS**; company link **MISSING** on register |
+| Success | Prefer navigate Login + copy: “Account may need company linking” |
+| Failure | Show API errors; no fake home entry |
+| Classification | **PARTIAL** + **REQUIRES DECISION** |
+
+### 3.4 Home — `/(tabs)/` (see §7)
+
+### 3.5 Shipments tab — `/(tabs)/shipments`
+
+| Item | Spec |
+|------|------|
+| Current | Create-shipment wizard + SafeMap **MOCK** |
+| Target | Shipment **list** primary |
+| API today | Client **cannot** `shipment.view` / `shipment.create` |
+| Unavailable UX | Title “Shipments”; body explains unavailable; CTA “Message dispatcher” |
+| Classification | **MOCK** now → **PLANNED** list/create after contract |
+
+### 3.6 Create Shipment (target flow)
+
+| Item | Spec |
+|------|------|
+| Entry | From list “New” or Home quick action **when API exists** |
+| Fields | Only fields allowed by **future client create contract** — do not invent |
+| Ops create today | Requires admin/dispatcher + `customer_company_id`, status, cargo rules |
+| Classification | **MISSING** client contract; UI prototype ≠ production |
+
+### 3.7 Shipment Details
+
+| Route today | `/shipment-details` **MOCK** |
+| Target | `/shipments/[id]` or stack detail after client show API |
+| Handoff | `/shipment/[id]` remains **comms only** **REAL** |
+| Contact | → handoff or existing conversation |
+| Classification | Product detail **MOCK**; handoff **REAL** |
+
+### 3.8 Tracking — `/(tabs)/tracking`
+
+| Item | Spec |
+|------|------|
+| Current | Mock map / FX-4920 **MOCK** |
+| Target | Status + timeline for selected shipment; map only if client-safe location API |
+| Live fleet API | Exists for **admin/dispatcher only** — **forbidden** for Client product |
+| Classification | **MOCK** → **PLANNED** |
+
+### 3.9 Messages — `/(tabs)/messages` (**PROTECTED**)
+
+| Item | Spec |
+|------|------|
+| Purpose | List `dispatcher_customer` conversations |
+| API | `GET /conversations?type=dispatcher_customer` **REAL** |
+| Empty | Honest empty copy **EXISTING** |
+| Actions | Open conversation; shipment handoff link when `shipmentId` |
+| Classification | **REAL / EXISTING** |
+
+### 3.10 Conversation — `/conversation/[id]` (**PROTECTED**)
+
+| Item | Spec |
+|------|------|
+| Purpose | History, send, mark read, realtime status |
+| API | get/list/send/read **REAL** |
+| Realtime | Echo private `conversation.{id}` + REST fallback **REAL** |
+| Actions | Send; Load older; Reconnect; Open shipment communication |
+| Classification | **REAL / EXISTING** |
+
+### 3.11 Shipment communication handoff — `/shipment/[id]` (**PROTECTED**)
+
+| Item | Spec |
+|------|------|
+| Purpose | Resolve authorized conversation only |
+| API | List by `shipment_id`; **never create** |
+| Success | Open conversation |
+| Unavailable | Honest “dispatcher must open thread” |
+| Classification | **REAL / EXISTING** |
+
+### 3.12 Notifications — `/notifications`
+
+| Item | Spec |
+|------|------|
+| Current | Hardcoded cards **MOCK** |
+| Target | List/read/deep-link after notifications API |
+| Backend | DB model exists; **no REST routes** |
+| Interim UX | Unavailable + link to Messages |
+| Classification | **MOCK** / API **MISSING** |
+
+### 3.13 Profile — `/(tabs)/profile`
+
+| Item | Spec |
+|------|------|
+| REAL | Name, email, company name/code, logout |
+| MOCK / remove | Fake phone, addresses, biometrics, AI toggles, enterprise tier |
+| Classification | **PARTIAL** |
+
+### 3.14 Company
+
+| Item | Spec |
+|------|------|
+| Data | From identity; optional `GET /companies/{id}` own only **PARTIAL** |
+| Not allowed | Company directory / admin company CRUD |
+
+### 3.15 Settings / Support
+
+| Settings | Only real preferences when contracted; else omit |
+| Support P0 | Contact dispatcher via Messages **REAL** |
+| Support P2 | FAQ / Help — **PLANNED** / **MISSING** |
+
+---
+
+## 4. Home — Deep Specification
+
+### 4.1 Question Home answers
+
+“What do I need to know and do right now for my company’s logistics relationship with FleetX?”
+
+### 4.2 Hierarchy (target)
+
+1. Greeting + company identity (**REAL**)  
+2. Linkage / role warnings (**REAL**)  
+3. Needs attention (shipments/exceptions) — **MISSING** API → hide or unavailable  
+4. Active shipments summary — **MISSING** API → unavailable  
+5. Messages shortcut (+ optional unread if API allows) — **REAL** entry  
+6. Quick actions: Messages (always); Shipments/Tracking/Create only when contracted or explicitly Unavailable  
+7. Notifications bell — **MISSING** API → unavailable or Messages  
+
+### 4.3 Block classification
+
+| Block | Classification |
+|-------|----------------|
+| Greeting / avatar initial | **REAL** (from user) |
+| Company subtitle | **REAL** / unlinked copy |
+| Fake FX-4920 / driver cards / KPI strips | **MOCK — must not ship as live** |
+| Messages CTA | **REAL** |
+| Notifications badge counts | **MISSING** |
+| Create shipment CTA | **MISSING** (show unavailable) |
+
+### 4.4 Home today vs after backend
+
+| Today | After client shipment APIs |
+|-------|----------------------------|
+| Identity + messaging-centric home | Add active shipments, attention, track shortcuts |
+| No fake numbers | Real shipment cards from client-scoped list |
+
+### 4.5 States
+
+Loading: skeleton header. Empty shipments: “No shipments to show” or “Shipments unavailable”. Error: Retry. Unlinked: banner. Never populate with prototype IDs.
+
+---
+
+## 5. Shipments — Deep Specification
+
+### 5.1 List (TARGET)
+
+| Feature | Spec | Backend |
+|---------|------|---------|
+| Tabs/filters | All / Active / In transit / Delivered / Cancelled | Status names **EXIST** in domain; client list **MISSING** |
+| Search / sort / pagination | Align with ops query params when client API mirrors them | Ops filters **EXIST**; client access **NO** |
+| Pull refresh | Required | |
+| Empty | “No shipments yet” | |
+| Card | Number, status chip, origin→destination, dates, priority if exposed | |
+
+**BACKEND CONTRACT MISSING — DO NOT IMPLEMENT AGAINST ASSUMPTION** for client-scoped `GET` list.
+
+### 5.2 Shipment card (TARGET fields — only if API returns them)
+
+shipment_number, status, pickup/delivery summaries, planned dates, priority — as returned by **client-safe** resource. No driver phone unless product decision allows.
+
+### 5.3 Details (TARGET)
+
+Overview, status, timeline (status history if provided), origin/destination, cargo summary, dates, notes, Track CTA, Contact dispatcher → `/shipment/{id}` handoff, documents **if** API supports.
+
+Current `/shipment-details`: **MOCK** prototype — not production source of truth.
+
+### 5.4 Create Shipment
+
+| Decision | **REQUIRES DECISION**: self-serve vs dispatcher-created only |
+|----------|--------------------------------------------------------------|
+| If self-serve | Client create contract required; field whitelist from backend |
+| If not | Create UI = unavailable; guide user to Messages |
+| Current tab UI | Prototype create wizard **MOCK** |
+
+Ops statuses for domain reference: `pending`, `assigned`, `in_transit`, `at_customs`, `delivered`, `cancelled`.
+
+---
+
+## 6. Tracking — Deep Specification
+
+Tracking is **status clarity first**, map second.
+
+### 6.1 Hierarchy
+
+1. Current status  
+2. Milestone timeline  
+3. Origin / destination  
+4. Progress (derived from status if no GPS)  
+5. ETA — only if API provides  
+6. Live location / map — only if client-safe  
+7. Exceptions  
+8. Contact dispatcher  
+
+### 6.2 CURRENT vs TARGET
+
+| CURRENT | TARGET |
+|---------|--------|
+| Mock map UI **MOCK** | Status/timeline from client shipment/tracking contract |
+| Must not show fake GPS | Map optional behind SafeMap until real |
+| Live fleet endpoints | **Forbidden** for Client (admin/dispatcher) |
+
+### 6.3 Privacy
+
+Driver name/phone/photo: **REQUIRES DECISION**. Default: hide driver PII unless explicitly allowed in client contract.
+
+---
+
+## 7. Messaging — Protected Foundation (M7–M9)
+
+### 7.1 Do not redesign
+
+Documented behavior (all **REAL / EXISTING**):
+
+- Conversation list filtered `dispatcher_customer`  
+- Isolation from driver threads  
+- Detail: history, send, mark read  
+- Dedupe by Message.id  
+- Realtime: private channel + `.message.created`  
+- REST fallback + Reconnect CTA + honest status labels  
+- Handoff: find authorized conversation only — **no auto-create**  
+- Client cannot create new threads (`conversation.manage` denied)  
+
+**Out of scope / not supported:** typing, presence, receipts, attachments, new messaging APIs.
+
+### 7.2 Product UX integration points only
+
+| From | Action | To |
+|------|--------|-----|
+| Home | Open Messages | Messages tab |
+| Shipment Details (future) | Contact dispatcher | `/shipment/{id}` handoff |
+| Messages row | Open thread | `/conversation/{id}` |
+| Notification (future) | Open conversation | `/conversation/{id}` |
+| Issue / support | Contact FleetX | Messages |
+
+---
+
+## 8. Notifications
+
+| Element | Spec | Classification |
+|---------|------|----------------|
+| Center UI | List, filters, timestamps | **MOCK** today |
+| Read/unread | Requires API | **MISSING** |
+| Categories | Shipment, exception, dispatcher, system | **PLANNED** |
+| Deep links | → shipment detail / conversation | **PLANNED** |
+| Push | Not in C2 messaging scope | **MISSING** |
+
+Interim: Unavailable screen + “Open Messages”.
+
+---
+
+## 9. Profile / Company / Settings
+
+| Area | Show | Classification |
+|------|------|----------------|
+| Name, email, role | Yes | **REAL** |
+| Company name/code | Yes if linked | **REAL** |
+| Logout | Yes | **REAL** |
+| Phone, addresses, biometrics, AI, enterprise tier | Remove or Future | **MOCK** |
+| Password change | Only if API exists | **MISSING** / confirm |
+| Appearance | Optional local | **REQUIRES DECISION** |
+
+---
+
+## 10. Support
+
+| Priority | Experience | Backend |
+|----------|------------|---------|
+| P0 | Contact dispatcher via Messages | **REAL** |
+| P2 | FAQ / Help center | **MISSING** |
+| P2 | Report issue form | Issues API ops-gated — **not client** |
+| P3 | Emergency escalation | **REQUIRES DECISION** |
+
+---
+
+## 11. Global UX States
+
+| State | Principle |
+|-------|-----------|
+| INITIAL | Deterministic first paint; no flash of wrong tab |
+| LOADING | Spinner/skeleton; controls disabled where needed |
+| SUCCESS | Show real data only |
+| EMPTY | Honest empty copy; one clear next action |
+| PARTIAL | Show known fields; mark rest Unavailable |
+| ERROR / NETWORK / OFFLINE | Message + Retry; no fake success |
+| UNAUTHORIZED / SESSION EXPIRED | Clear session → Login |
+| FORBIDDEN | Explain lack of access; no bypass |
+| UNAVAILABLE | Feature not contracted / not client-allowed |
+| RETRY | Idempotent refresh |
+| SUCCESS ACTION | Toast/inline confirm only after API success |
+| DESTRUCTIVE | Confirm (logout; future cancel shipment) |
+
+**Never silently display fake success.**
+
+---
+
+## 12. Button / Action Inventory (summary)
+
+| Button | Intent | API | Success | Failure | Disabled |
+|--------|--------|-----|---------|---------|----------|
+| Login | Authenticate | `POST /auth/login` | Tabs | Inline error | While loading |
+| Register submit | Create account | Register (decision) | Login + copy | Error | Loading |
+| Google | SSO | None | — | Unavailable | Prefer hidden/disabled |
+| Home → Messages | Communicate | — | Messages tab | — | If unlinked |
+| Home → Shipments/Track/Create | Ops | Client APIs | Dest | Unavailable | If no contract |
+| Messages row | Open thread | Conversations | Conversation | Error state | — |
+| Send | Send message | `POST .../messages` | Append + clear draft | Keep draft + error | Empty/whitespace/sending |
+| Reconnect | Realtime | Echo reconnect | Status update | Stay fallback | — |
+| Shipment handoff open | Open thread | Resolve only | Conversation | Unavailable | — |
+| Profile Logout | End session | Logout + clear | Login | Still clear local | — |
+| Notification open | Navigate | Future API | Deep link | — | — |
+
+---
+
+## 13. Navigation Matrix
+
+| FROM | ACTION | TO | PARAMS | BACK | AUTH |
+|------|--------|-----|--------|------|------|
+| `/` | Auto | Login or Tabs | — | — | Session |
+| Login | Success | `/(tabs)` | — | N/A | — |
+| Login | Sign up | `/register` | — | Login | — |
+| Home | Messages | Messages tab | — | Home | Yes |
+| Home | Notifications | `/notifications` | — | Home | Yes |
+| Home | Shipment details (proto) | `/shipment-details` | — | Home | Yes |
+| Messages | Open | `/conversation/[id]` | id | Messages | Yes + linked |
+| Messages | Handoff | `/shipment/[id]` | shipmentId | Messages | Yes |
+| Conversation | Comms link | `/shipment/[id]` | shipmentId | Conversation | Yes |
+| Handoff | Open conversation | `/conversation/[id]` | id | Handoff | Yes |
+| Shipment details (proto) | Message | Messages | — | Details | Yes |
+| Profile | Logout | Login | — | — | Clears |
+| Tracking / Shipments | Back | Prior | — | Stack/tab | Yes |
+
+Deep links (target): `fleetxclient://conversation/{id}`, `fleetxclient://shipment/{id}` (handoff), future shipment detail when API exists. Scheme **EXISTING** in app.json (`fleetxclient`).
+
+---
+
+## 14. Backend Contract Matrix
+
+| Feature | Screen | Required API | Status | Auth |
+|---------|--------|--------------|--------|------|
+| Login | Login | `POST /auth/login` | **REAL** | Public |
+| Me | Home/Profile | `GET /auth/me` | **REAL** | JWT |
+| Identity | Home/Profile | `GET /auth/identity` | **REAL** | JWT |
+| Register | Register | `POST /auth/register` | **PARTIAL** (unlinked) | Public |
+| Own company | Profile | `GET /companies/{id}` | **PARTIAL** (own only) | JWT + policy |
+| Conversations | Messages | `GET /conversations` | **REAL** | JWT + viewAny |
+| Messages | Conversation | list/send/read | **REAL** | Participant |
+| Open conversation | — | `POST /conversations` | **PARTIAL** (no new thread for client) | |
+| Broadcast auth | Realtime | `/broadcasting/auth` | **REAL** | JWT |
+| Client shipment list | Shipments | Client-scoped list | **MISSING** | Must not use ops list |
+| Client shipment create | Create | Client create | **MISSING** | Ops create is dispatcher/admin |
+| Client shipment show | Details | Client show | **MISSING** | |
+| Client tracking | Tracking | Client-safe track/status | **MISSING** | Live fleet ops-only |
+| Notifications | Notifications | List/read | **MISSING** (table only) | |
+| Dashboard KPI | Home | Client KPI | **MISSING**; ops `/dashboard/*` = **Gap — do not use** | |
+| Orders | — | Orders API | **MISSING** | Roadmap |
+
+---
+
+## 15. Data Ownership & Security
+
+| Data | Client may see? |
+|------|-----------------|
+| Own user profile | Yes |
+| Own linked company | Yes |
+| Own participant conversations (`dispatcher_customer`) | Yes |
+| Other companies’ data | No |
+| Driver threads | No |
+| All shipments (unscoped) | No |
+| Live fleet | No |
+| Ops dashboard/KPIs | No |
+| Driver PII | Default No — **REQUIRES DECISION** |
+| Create conversations | No (dispatcher opens) |
+
+Company isolation for future shipment APIs must filter by `customer_company_id === auth.company_id`.
+
+---
+
+## 16. Design System UX Rules
+
+Derived from recovered FleetX Client UI + `constants/theme.ts`:
+
+| Token | Guidance |
+|-------|----------|
+| Color | Dark premium navy `#080B16`, cards `#111A2E`, primary `#1E75FF`, glow `#5C5CFF`, muted slate text |
+| Typography | Clear hierarchy: title / subtitle / body / meta; high contrast on dark |
+| Spacing | 8-pt rhythm; generous card padding |
+| Cards | Soft border `#1E293B`, limited glow; no decorative noise |
+| Buttons | Primary filled blue; outline secondary; destructive logout red |
+| Inputs | Dark inputBg; focus primary border |
+| Status chips | Map to real shipment statuses when data exists |
+| Nav | Dark tab bar `#0B1220`; lucide icons |
+| Maps | SafeMap unavailable until real client map data |
+| Empty/Error | Calm copy; one CTA |
+| Motion | Subtle splash only; no distracting animation |
+| A11y | Min touch 44pt; testIDs on critical auth/messaging paths |
+| Principle | Operational clarity over decoration |
+
+---
+
+## 17. Responsive / Platform UX
+
+| Platform | Notes |
+|----------|-------|
+| Android | `10.0.2.2` hosts; cleartext only for local dev; keyboard avoid |
+| iOS | Safe areas; SecureStore; keyboard padding |
+| Web | Supported for smoke; maps fallback; localStorage token |
+| All | Portrait primary; bottom tabs; scroll long forms; no landscape-specific product requirement |
+
+---
+
+## 18. Customer Journey Scenarios
+
+1. **New → Login → Home:** Splash → Login → identity load → Home (real greeting; no fake shipments).  
+2. **Messages:** Home → Messages → Conversation → send/receive (REAL).  
+3. **Shipment → Details → Track:** Only after APIs; else Unavailable → Messages.  
+4. **Issue → Dispatcher:** Details/Home → Contact → handoff or Messages → Conversation.  
+5. **Notification:** Future API → deep link; today Unavailable → Messages.  
+6. **Logout:** Profile → Logout → Login.  
+7. **Session expires:** 401 → clear → Login.  
+8. **No shipments:** Empty list (when API) or Unavailable (today).  
+9. **No messages:** Existing empty state.  
+10. **Unlinked company:** Banner; messaging disabled.  
+11. **Feature unavailable:** Explicit unavailable, not mock success.  
+12. **Network failure:** Error + Retry on fetch/send.
+
+---
+
+## 19. Priority Model
+
+### P0
+Auth/session UX; Home without fake ops data; Messages + Conversation + Handoff; global unavailable/error patterns; unlinked-company clarity.
+
+### P1
+Client shipment list/details; status tracking; notifications API+UI; create shipment **if** business requires self-serve; company profile completeness.
+
+### P2
+Maps/live location (client-safe); Help/FAQ; preference persistence; richer Home attention queue.
+
+### P3
+Orders module; push; Google SSO; password reset; multi-language.
+
+**Rule:** Missing backend contracts cannot silently become P0 implementation work on the Client alone.
+
+---
+
+## 20. Implementation Dependency Map
+
+| Phase | Feature | Frontend | Backend | Prerequisites | Acceptance |
+|-------|---------|----------|---------|---------------|------------|
+| C2.2 | This spec | Docs only | — | C2.1 | Spec accepted |
+| C2.3 | Auth/session UX | Login/register/unlink banners | Existing auth | C2.2 | Login/restore/logout/unlink verified |
+| C2.4 | Home honesty | Remove unlabeled mocks; messaging CTAs | Auth | C2.3 | No fake FX- IDs |
+| C2.5 | Nav shell polish | Tab meanings; unavailable Shipments/Tracking | — | C2.4 | Messages intact |
+| C2.6 | Shipments list | List UI | **Client list contract** | Backend ready | Real data or blocked |
+| C2.7 | Shipment details | Detail + Contact → handoff | **Client show** | C2.6 | Handoff still no auto-create |
+| C2.8 | Create shipment | Wizard | **Client create** + decision | Decision | No fake confirm |
+| C2.9 | Tracking | Status/timeline | **Client track/status** | Show API | No fake GPS |
+| C2.10 | Notifications | Center | **Notifications API** | — | Deep links work |
+| C2.11 | Profile cleanup | Real fields only | Company show | — | Logout works |
+| C2.12 | Messaging CTAs only | Integration points | Existing messaging | — | No messaging rewrite |
+| C2.13 | Global UX hardening | Empty/error/loading | — | — | Matrix compliance |
+| C2.14 | E2E smoke | Auth + messaging + any live domains | API/Reverb | — | Checklist pass |
+
+---
+
+## 21. Unresolved Product Decisions
+
+1. **Self-serve shipment create** vs dispatcher-only creation  
+2. **Register** flow: auto-link company, invite-only, or admin linking  
+3. **Driver PII** visibility on tracking/details  
+4. **Orders** vs **Shipments** as customer noun (roadmap vs domain)  
+5. **Tracking tab** keep vs nest under Shipments after APIs  
+6. Local **appearance** settings without backend  
+7. Whether **password change / reset** is in scope  
+
+---
+
+## 22. Backend Contracts Required Before Implementation
+
+1. Client-scoped shipment **list** (company isolation)  
+2. Client-scoped shipment **show**  
+3. Client shipment **create** (if decision = self-serve)  
+4. Client-safe **status/timeline** (and optional location)  
+5. **Notifications** list/mark-read (+ types)  
+6. Register/link **policy** for usable client accounts  
+7. Harden **Gap** ops endpoints so client JWTs cannot read fleet-wide KPIs  
+
+Until then: **BACKEND CONTRACT MISSING — DO NOT IMPLEMENT AGAINST ASSUMPTION.**
+
+---
+
+## 23. Proposed Implementation Order
+
+C2.3 Auth/session UX → C2.4 Honest Home → C2.5 Shell/unavailable states → *(backend contracts)* → C2.6–C2.10 domain features → C2.11 messaging CTAs → C2.12–C2.14 hardening & E2E.
+
+Messaging remains protected throughout.
+
+---
+
+*End of C2.2 UX Master Specification. This document is the Single Source of Truth for subsequent Client implementation phases. No application code was modified in producing this file.*

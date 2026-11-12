@@ -1,0 +1,78 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #0A192F;
+  --color-secondary: #0250C5;
+  --color-accent: #00E5FF;
+  
+  --color-slate-custom-50: #f8fafc;
+  --color-slate-custom-100: #f1f5f9;
+  --color-slate-custom-200: #e2e8f0;
+  --color-slate-custom-300: #cbd5e1;
+  --color-slate-custom-400: #94a3b8;
+  --color-slate-custom-500: #64748b;
+  --color-slate-custom-600: #475569;
+  --color-slate-custom-700: #334155;
+  --color-slate-custom-800: #1e293b;
+  --color-slate-custom-900: #0f172a;
+  --color-slate-custom-950: #020617;
+
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-cairo: "Cairo", system-ui, -apple-system, sans-serif;
+}
+
+body {
+  background-color: #121620;
+  color: #f8fafc;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Custom premium visual classes */
+.bg-grid-pattern {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+}
+
+/* Side Dot Matrix Patterns similar to the screenshot border */
+.bg-dot-matrix {
+  background-size: 16px 16px;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1.5px, transparent 1.5px);
+}
+
+.bg-dot-pattern-hero {
+  background-size: 24px 24px;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+}
+
+/* Custom glows */
+.glow-cyan-soft {
+  box-shadow: 0 0 50px -10px rgba(0, 229, 255, 0.15);
+}
+
+.glow-blue-soft {
+  box-shadow: 0 0 60px -15px rgba(2, 80, 197, 0.2);
+}
+
+/* Custom Webkit scrollbar for premium dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #121620;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}

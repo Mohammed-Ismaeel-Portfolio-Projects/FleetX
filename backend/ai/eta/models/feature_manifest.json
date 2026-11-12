@@ -1,0 +1,70 @@
+{
+  "feature_count": 22,
+  "feature_names": [
+    "base_eta_seconds",
+    "base_distance_meters",
+    "remaining_distance_meters",
+    "total_distance_meters",
+    "distance_travelled_meters",
+    "completion_percentage",
+    "current_latitude",
+    "current_longitude",
+    "current_speed_kmh",
+    "heading",
+    "gps_accuracy",
+    "driver_years_experience",
+    "driver_score",
+    "vehicle_gross_weight_kg",
+    "cargo_weight",
+    "hour_of_day",
+    "day_of_week",
+    "movement_status",
+    "cargo_type",
+    "baseline_routing_provider",
+    "temperature_controlled",
+    "hazardous_cargo"
+  ],
+  "numeric_features": [
+    "base_eta_seconds",
+    "base_distance_meters",
+    "remaining_distance_meters",
+    "total_distance_meters",
+    "distance_travelled_meters",
+    "completion_percentage",
+    "current_latitude",
+    "current_longitude",
+    "current_speed_kmh",
+    "heading",
+    "gps_accuracy",
+    "driver_years_experience",
+    "driver_score",
+    "vehicle_gross_weight_kg",
+    "cargo_weight",
+    "hour_of_day",
+    "day_of_week"
+  ],
+  "categorical_features": [
+    "movement_status",
+    "cargo_type",
+    "baseline_routing_provider"
+  ],
+  "binary_features": [
+    "temperature_controlled",
+    "hazardous_cargo"
+  ],
+  "target_col": "residual_seconds",
+  "excluded_leakage_cols": [
+    "id",
+    "actual_delivery_at",
+    "ended_at",
+    "actual_remaining_seconds",
+    "residual_seconds",
+    "actual_total_duration_seconds",
+    "shipment_id",
+    "assignment_id",
+    "tracking_log_id",
+    "observation_time",
+    "created_at",
+    "updated_at"
+  ]
+}
